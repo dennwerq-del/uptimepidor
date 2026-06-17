@@ -153,17 +153,21 @@ local function triggerInstantHitboxUpdate()
     for i = 1, #allPlayers do
         local player = allPlayers[i]
         
-        -- Пропуск себя по адресу памяти
+        -- Пропуск себя
         if player.Address == localPlayer.Address then continue end
         
-        -- Защита команды по адресам памяти из Matcha
-        if player.Team and localPlayer.Team and player.Team.Address == localPlayer.Team.Address then 
-            continue 
+        -- Двойная проверка команды (по адресу и по имени для стабильности плагина)
+        local myTeam = localPlayer.Team
+        local enemyTeam = player.Team
+        if myTeam and enemyTeam then
+            if myTeam.Address == enemyTeam.Address or myTeam.Name == enemyTeam.Name then 
+                continue 
+            end
         end
         
         local character = player.Character
         if character then
-            -- Моментальная безусловная запись нового размера в память
+            -- Единоразовый принудительный удар по памяти новым размером (мгновенный апдейт)
             for j = 1, #iter do
                 local partName = iter[j]
                 local hitbox = character:FindFirstChild(partName)
@@ -245,7 +249,8 @@ end)
 -- ==========================================
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    -- Фильтр gameProcessed убран, чтобы бинды + и - нажимались прямо во время катки
+    -- Фильтр gameProcessed полностью убран для кнопок изменения размера, 
+    -- чтобы они прожимались прямо во время бега и стрельбы
     
     -- [L] Открытие/Закрытие меню
     if input.KeyCode == Enum.KeyCode.L then
@@ -253,7 +258,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         updateMenuUI()
     end
     
-    -- Глобальные хоткеи: работают всегда и мгновенно применяют размер
+    -- Глобальные хоткеи (работают ВСЕГДА и обновляют размер в ту же милисекунду)
     if input.KeyCode == Enum.KeyCode.Up or input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.Plus or input.KeyCode == Enum.KeyCode.KeypadPlus then
         size = size + 1
         updateMenuUI()
@@ -287,26 +292,33 @@ while true do
             -- Пропуск себя по адресу памяти
             if player.Address == localPlayer.Address then continue end
             
-            -- Защита команды по адресам памяти из логов Matcha
-            if player.Team and localPlayer.Team and player.Team.Address == localPlayer.Team.Address then 
-                continue 
+            -- Стабильная защита команды по двум параметрам (Адрес + Имя)
+            local myTeam = localPlayer.Team
+            local enemyTeam = player.Team
+            if myTeam and enemyTeam then
+                if myTeam.Address == enemyTeam.Address or myTeam.Name == enemyTeam.Name then 
+                    continue 
+                end
             end
             
             local character = player.Character
             if character then
-                -- Безусловная перезапись памяти без проверки старого размера
                 for j = 1, #iter do
                     local partName = iter[j]
                     local hitbox = character:FindFirstChild(partName)
                     if hitbox then
-                        hitbox.Size = Vector3.new(size, size, size)
-                        hitbox.CanCollide = false
+                        -- Умная проверка: пишем в память ТОЛЬКО если размер отличается.
+                        -- Это спасает буфер плагина от перегрузки очереди и убирает задержки!
+                        if math.abs(hitbox.Size.X - size) > 0.1 then
+                            hitbox.Size = Vector3.new(size, size, size)
+                            hitbox.CanCollide = false
+                        end
                     end
                 end
             end
         end
     end
     
-    -- Высокая скорость цикла (0.05с) ловит всех ресающихся игроков "на лету"
-    wait(0.05)
+    -- Оптимальный интервал для проверки респавнов без засорения шины данных плагина
+    wait(0.1)
 end
