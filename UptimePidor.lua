@@ -2,7 +2,8 @@
 -- MAIN CONFIGURATION & HITBOX VARIABLES
 -- ==========================================
 local size = 7
-local defaultSize = 7
+local defaultSize = 1 -- Изменено: стандартный размер теперь 1
+local isHitboxEnabled = true -- Состояние работы хитбоксов (Вкл/Выкл)
 local iter = {
     [1] = "LeftUpperArm",
     [2] = "RightLowerLeg",
@@ -79,7 +80,7 @@ minus_text.Visible = false
 local reset_bg = Drawing.new("Square")
 reset_bg.Filled = true
 reset_bg.Color = Color3.fromRGB(180, 50, 50)
-reset_bg.Size = Vector2.new(80, 30)
+reset_bg.Size = Vector2.new(60, 30)
 reset_bg.Visible = false
 
 -- Reset Button Text
@@ -90,9 +91,24 @@ reset_text.Size = 14
 reset_text.Font = Drawing.Fonts.SystemBold
 reset_text.Visible = false
 
+-- Toggle Button Background (Включение/Выключение сайза)
+local toggle_bg = Drawing.new("Square")
+toggle_bg.Filled = true
+toggle_bg.Color = Color3.fromRGB(50, 150, 50)
+toggle_bg.Size = Vector2.new(150, 30)
+toggle_bg.Visible = false
+
+-- Toggle Button Text
+local toggle_text = Drawing.new("Text")
+toggle_text.Text = "Hitbox: ON"
+toggle_text.Color = Color3.fromRGB(255, 255, 255)
+toggle_text.Size = 14
+toggle_text.Font = Drawing.Fonts.SystemBold
+toggle_text.Visible = false
+
 -- Info Controls Text (Monospace Font)
 local controls_text = Drawing.new("Text")
-controls_text.Text = "Keybinds:\n[L] Toggle UI  |  [Arrows / + -] Change Size\n[R] Reset Size  |  Drag top bar to move\nTeam Protection: ACTIVE"
+controls_text.Text = "Keybinds:\n[L] Toggle UI  |  [Arrows / + -] Change Size\n[R] Reset Size  |  [T] Toggle Hitbox Status\nTeammates Invisibility: ACTIVE"
 controls_text.Color = Color3.fromRGB(160, 160, 160)
 controls_text.Size = 13
 controls_text.Font = Drawing.Fonts.Monospace
@@ -114,14 +130,26 @@ local function updateElementPositions()
     minus_bg.Position = base + Vector2.new(65, 85)
     minus_text.Position = minus_bg.Position + Vector2.new(16, 5)
     
-    reset_bg.Position = base + Vector2.new(120, 85)
-    reset_text.Position = reset_bg.Position + Vector2.new(20, 6)
+    reset_bg.Position = base + Vector2.new(115, 85)
+    reset_text.Position = reset_bg.Position + Vector2.new(12, 6)
+
+    toggle_bg.Position = base + Vector2.new(190, 85)
+    toggle_text.Position = toggle_bg.Position + Vector2.new(32, 6)
     
     controls_text.Position = base + Vector2.new(15, 130)
 end
 
 local function updateMenuUI()
     size_status_text.Text = "Current Size: " .. tostring(size)
+    
+    -- Динамическое изменение цвета кнопки включения хитбоксов
+    if isHitboxEnabled then
+        toggle_bg.Color = Color3.fromRGB(50, 150, 50)
+        toggle_text.Text = "Hitbox: ON"
+    else
+        toggle_bg.Color = Color3.fromRGB(180, 50, 50)
+        toggle_text.Text = "Hitbox: OFF"
+    end
     
     menu_bg.Visible = isMenuOpen
     title_text.Visible = isMenuOpen
@@ -132,6 +160,8 @@ local function updateMenuUI()
     minus_text.Visible = isMenuOpen
     reset_bg.Visible = isMenuOpen
     reset_text.Visible = isMenuOpen
+    toggle_bg.Visible = isMenuOpen
+    toggle_text.Visible = isMenuOpen
     controls_text.Visible = isMenuOpen
     
     if isMenuOpen then
@@ -147,13 +177,12 @@ updateElementPositions()
 -- ==========================================
 
 local function triggerInstantHitboxUpdate()
-    -- Полностью очищаем кэш, чтобы основной цикл не блокировал изменения
+    -- Сбрасываем кэш, чтобы заставить скрипт принудительно обновить память
     appliedSizes = {}
 
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
 
-    -- Предварительно один раз получаем данные нашей команды
     local myTeamName = nil
     local myTeamAddress = nil
     pcall(function()
@@ -164,12 +193,14 @@ local function triggerInstantHitboxUpdate()
         end
     end)
 
+    -- Если скрипт выключен кнопкой, целевой размер становится равным 1
+    local currentTargetSize = isHitboxEnabled and size or 1
+
     local allPlayers = game.Players:GetPlayers()
     for i = 1, #allPlayers do
         local player = allPlayers[i]
         if player.Address == localPlayer.Address then continue end
         
-        -- Проверка на тимейта
         local isTeammate = false
         pcall(function()
             local enemyTeam = player.Team
@@ -180,16 +211,28 @@ local function triggerInstantHitboxUpdate()
             end
         end)
         
-        if isTeammate then continue end
-        
-        -- Мгновенная принудительная запись нового размера прямо в память (без задержек)
         local character = player.Character
         if character then
+            if isTeammate then
+                -- Делаем тиммейта полностью невидимым (Transparency = 1)
+                pcall(function()
+                    local children = character:GetChildren()
+                    for k = 1, #children do
+                        local child = children[k]
+                        if child:IsA("BasePart") then
+                            child.Transparency = 1
+                        end
+                    end
+                end)
+                continue
+            end
+            
+            -- Моментальный принудительный апдейт врагов
             for j = 1, #iter do
                 local partName = iter[j]
                 local hitbox = character:FindFirstChild(partName)
                 if hitbox then
-                    hitbox.Size = Vector3.new(size, size, size)
+                    hitbox.Size = Vector3.new(currentTargetSize, currentTargetSize, currentTargetSize)
                     hitbox.CanCollide = false
                 end
             end
@@ -255,6 +298,10 @@ RunService.Heartbeat:Connect(function()
             size = defaultSize
             updateMenuUI()
             triggerInstantHitboxUpdate()
+        elseif isMouseInArea(toggle_bg.Position, toggle_bg.Size) then
+            isHitboxEnabled = not isHitboxEnabled
+            updateMenuUI()
+            triggerInstantHitboxUpdate()
         end
     end
     
@@ -266,15 +313,13 @@ end)
 -- ==========================================
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    -- Фильтр gameProcessed убран, чтобы хоткеи на изменение размера работали всегда
-    
     -- [L] Открытие/Закрытие меню
     if input.KeyCode == Enum.KeyCode.L then
         isMenuOpen = not isMenuOpen
         updateMenuUI()
     end
     
-    -- Глобальные хоткеи: работают ВСЕГДА и мгновенно применяют изменения размеров
+    -- Глобальные хоткеи: работают ВСЕГДА (даже во время стрельбы и бега)
     if input.KeyCode == Enum.KeyCode.Up or input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.Plus or input.KeyCode == Enum.KeyCode.KeypadPlus then
         size = size + 1
         updateMenuUI()
@@ -291,6 +336,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         size = defaultSize
         updateMenuUI()
         triggerInstantHitboxUpdate()
+        
+    elseif input.KeyCode == Enum.KeyCode.T then -- Хоткей [T] для переключения работы сайза
+        isHitboxEnabled = not isHitboxEnabled
+        updateMenuUI()
+        triggerInstantHitboxUpdate()
     end
 end)
 
@@ -301,7 +351,7 @@ end)
 while true do
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
-        -- Стабильное чтение нашей команды ОДИН раз за итерацию цикла
+        -- Стабильное чтение нашей команды один раз за итерацию
         local myTeamName = nil
         local myTeamAddress = nil
         pcall(function()
@@ -312,11 +362,12 @@ while true do
             end
         end)
 
+        -- Текущая цель по размеру в зависимости от переключателя
+        local currentTargetSize = isHitboxEnabled and size or 1
+
         local allPlayers = game.Players:GetPlayers()
         for i = 1, #allPlayers do
             local player = allPlayers[i]
-            
-            -- Пропуск себя по адресу памяти
             if player.Address == localPlayer.Address then continue end
             
             -- Проверка команды (Адрес + Имя)
@@ -330,11 +381,23 @@ while true do
                 end
             end)
             
-            if isTeammate then continue end
-            
             local character = player.Character
             if character then
                 local charAddress = character.Address
+                
+                if isTeammate then
+                    -- Постоянно удерживаем невидимость тимейтов, если они переродились
+                    pcall(function()
+                        local children = character:GetChildren()
+                        for k = 1, #children do
+                            local child = children[k]
+                            if child:IsA("BasePart") and child.Transparency ~= 1 then
+                                child.Transparency = 1
+                            end
+                        end
+                    end)
+                    continue
+                end
                 
                 if not appliedSizes[player.Name] then 
                     appliedSizes[player.Name] = {} 
@@ -347,13 +410,13 @@ while true do
                     local hitbox = character:FindFirstChild(partName)
                     
                     if hitbox then
-                        -- Срабатывает если изменился глобальный размер или если игрок ресетнулся (сменился адрес чара)
-                        if plrCache[partName] ~= size or plrCache[partName .. "_char"] ~= charAddress then
-                            hitbox.Size = Vector3.new(size, size, size)
+                        -- Срабатывает моментально при смене размера или респавне врага
+                        if plrCache[partName] ~= currentTargetSize or plrCache[partName .. "_char"] ~= charAddress then
+                            hitbox.Size = Vector3.new(currentTargetSize, currentTargetSize, currentTargetSize)
                             hitbox.CanCollide = false
                             
-                            -- Сохраняем состояние, разгружая память плагина от бесконечного спама
-                            plrCache[partName] = size
+                            -- Сохраняем состояние в кэш Lua, разгружая буфер Matcha
+                            plrCache[partName] = currentTargetSize
                             plrCache[partName .. "_char"] = charAddress
                         end
                     end
@@ -362,6 +425,5 @@ while true do
         end
     end
     
-    -- Оптимальная задержка (0.1с) для моментального подхвата респавнов
     wait(0.1)
 end
