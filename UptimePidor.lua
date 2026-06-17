@@ -3,7 +3,6 @@
 -- ==========================================
 local size = 7
 local defaultSize = 7
-local coll = {}
 local iter = {
     [1] = "LeftUpperArm",
     [2] = "RightLowerLeg",
@@ -14,6 +13,8 @@ local iter = {
 }
 
 local isMenuOpen = false
+-- Локальный кэш для предотвращения перегрузки памяти Matcha
+local appliedSizes = {}
 
 -- ==========================================
 -- UI INITIALIZATION (DRAWING API)
@@ -146,28 +147,44 @@ updateElementPositions()
 -- ==========================================
 
 local function triggerInstantHitboxUpdate()
+    -- Полностью очищаем кэш, чтобы основной цикл не блокировал изменения
+    appliedSizes = {}
+
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
+
+    -- Предварительно один раз получаем данные нашей команды
+    local myTeamName = nil
+    local myTeamAddress = nil
+    pcall(function()
+        local t = localPlayer.Team
+        if t then
+            myTeamName = t.Name
+            myTeamAddress = t.Address
+        end
+    end)
 
     local allPlayers = game.Players:GetPlayers()
     for i = 1, #allPlayers do
         local player = allPlayers[i]
-        
-        -- Пропуск себя
         if player.Address == localPlayer.Address then continue end
         
-        -- Двойная проверка команды (по адресу и по имени для стабильности плагина)
-        local myTeam = localPlayer.Team
-        local enemyTeam = player.Team
-        if myTeam and enemyTeam then
-            if myTeam.Address == enemyTeam.Address or myTeam.Name == enemyTeam.Name then 
-                continue 
+        -- Проверка на тимейта
+        local isTeammate = false
+        pcall(function()
+            local enemyTeam = player.Team
+            if enemyTeam then
+                if (myTeamAddress and enemyTeam.Address == myTeamAddress) or (myTeamName and enemyTeam.Name == myTeamName) then 
+                    isTeammate = true 
+                end
             end
-        end
+        end)
         
+        if isTeammate then continue end
+        
+        -- Мгновенная принудительная запись нового размера прямо в память (без задержек)
         local character = player.Character
         if character then
-            -- Единоразовый принудительный удар по памяти новым размером (мгновенный апдейт)
             for j = 1, #iter do
                 local partName = iter[j]
                 local hitbox = character:FindFirstChild(partName)
@@ -249,8 +266,7 @@ end)
 -- ==========================================
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    -- Фильтр gameProcessed полностью убран для кнопок изменения размера, 
-    -- чтобы они прожимались прямо во время бега и стрельбы
+    -- Фильтр gameProcessed убран, чтобы хоткеи на изменение размера работали всегда
     
     -- [L] Открытие/Закрытие меню
     if input.KeyCode == Enum.KeyCode.L then
@@ -258,7 +274,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         updateMenuUI()
     end
     
-    -- Глобальные хоткеи (работают ВСЕГДА и обновляют размер в ту же милисекунду)
+    -- Глобальные хоткеи: работают ВСЕГДА и мгновенно применяют изменения размеров
     if input.KeyCode == Enum.KeyCode.Up or input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.Plus or input.KeyCode == Enum.KeyCode.KeypadPlus then
         size = size + 1
         updateMenuUI()
@@ -285,6 +301,17 @@ end)
 while true do
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
+        -- Стабильное чтение нашей команды ОДИН раз за итерацию цикла
+        local myTeamName = nil
+        local myTeamAddress = nil
+        pcall(function()
+            local t = localPlayer.Team
+            if t then
+                myTeamName = t.Name
+                myTeamAddress = t.Address
+            end
+        end)
+
         local allPlayers = game.Players:GetPlayers()
         for i = 1, #allPlayers do
             local player = allPlayers[i]
@@ -292,26 +319,42 @@ while true do
             -- Пропуск себя по адресу памяти
             if player.Address == localPlayer.Address then continue end
             
-            -- Стабильная защита команды по двум параметрам (Адрес + Имя)
-            local myTeam = localPlayer.Team
-            local enemyTeam = player.Team
-            if myTeam and enemyTeam then
-                if myTeam.Address == enemyTeam.Address or myTeam.Name == enemyTeam.Name then 
-                    continue 
+            -- Проверка команды (Адрес + Имя)
+            local isTeammate = false
+            pcall(function()
+                local enemyTeam = player.Team
+                if enemyTeam then
+                    if (myTeamAddress and enemyTeam.Address == myTeamAddress) or (myTeamName and enemyTeam.Name == myTeamName) then 
+                        isTeammate = true 
+                    end
                 end
-            end
+            end)
+            
+            if isTeammate then continue end
             
             local character = player.Character
             if character then
+                local charAddress = character.Address
+                
+                if not appliedSizes[player.Name] then 
+                    appliedSizes[player.Name] = {} 
+                end
+                local plrCache = appliedSizes[player.Name]
+                
+                -- Поддержание размера хитбоксов врагов
                 for j = 1, #iter do
                     local partName = iter[j]
                     local hitbox = character:FindFirstChild(partName)
+                    
                     if hitbox then
-                        -- Умная проверка: пишем в память ТОЛЬКО если размер отличается.
-                        -- Это спасает буфер плагина от перегрузки очереди и убирает задержки!
-                        if math.abs(hitbox.Size.X - size) > 0.1 then
+                        -- Срабатывает если изменился глобальный размер или если игрок ресетнулся (сменился адрес чара)
+                        if plrCache[partName] ~= size or plrCache[partName .. "_char"] ~= charAddress then
                             hitbox.Size = Vector3.new(size, size, size)
                             hitbox.CanCollide = false
+                            
+                            -- Сохраняем состояние, разгружая память плагина от бесконечного спама
+                            plrCache[partName] = size
+                            plrCache[partName .. "_char"] = charAddress
                         end
                     end
                 end
@@ -319,6 +362,6 @@ while true do
         end
     end
     
-    -- Оптимальный интервал для проверки респавнов без засорения шины данных плагина
+    -- Оптимальная задержка (0.1с) для моментального подхвата респавнов
     wait(0.1)
 end
