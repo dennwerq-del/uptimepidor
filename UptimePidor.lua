@@ -1,22 +1,22 @@
 -- ==========================================
 -- MAIN CONFIGURATION & HITBOX VARIABLES
 -- ==========================================
-local size = 1
+local size = 7
 local defaultSize = 1 
 local isHitboxEnabled = true 
 local isTrailsEnabled = true 
-local currentTab = "HitBox" -- Активная вкладка по умолчанию ("HitBox", "GunModule", "Visuals", "Configs")
+local currentTab = "HitBox" -- Активная вкладка меню ("HitBox", "GunModule", "Visuals", "Configs")
 
--- Переменные кодинга оружия (GunModule)
+-- Переменные кодинга оружия (GunModule - значения для прямой записи в память)
 local isAmmoEnabled = false      
 local customAmmoValue = 999       
 local customStoredAmmoValue = 300 
+
 local isRecoilEnabled = false    
 local customMaxSpreadValue = 0    
 local customRecoilControlValue = 0 
-local isFireRateEnabled = false  
-local customFireRateValue = 0     
-local customReloadTimeValue = 0   
+
+local isFireRateEnabled = false  -- Состояние тумблера Forced Auto Fire
 local customAutoValue = true      
 
 -- Система локального сохранения конфигураций в памяти плагина
@@ -31,12 +31,31 @@ local isMenuOpen = false
 local activeTrails = {} 
 local lastPlayerTrailTime = {} 
 
+-- Специализированные массивы для быстрой отрисовки без задержек экрана
+local global_ui = {}
+local tab_ui = {
+    HitBox = {},
+    GunModule = {},
+    Visuals = {},
+    Configs = {}
+}
+
+-- Программная функция регистрации элементов в менеджер оптимизации
+local function reg(obj, tabName)
+    if tabName then
+        table.insert(tab_ui[tabName], obj)
+    else
+        table.insert(global_ui, obj)
+    end
+    return obj
+end
+
 -- ==========================================
 -- UI INITIALIZATION (SKECH INSPIRED DARK STYLE)
 -- ==========================================
 
--- Main Background Window (Главное окно чита)
-local menu_bg = Drawing.new("Square")
+-- Main Background Window (Главная рамка интерфейса)
+local menu_bg = reg(Drawing.new("Square"))
 menu_bg.Filled = true
 menu_bg.Color = Color3.fromRGB(20, 20, 20)
 menu_bg.Position = Vector2.new(150, 150)
@@ -45,21 +64,21 @@ menu_bg.Transparency = 0.98
 menu_bg.Visible = false
 
 -- Left Sidebar Background (Левое меню категорий)
-local sidebar_bg = Drawing.new("Square")
+local sidebar_bg = reg(Drawing.new("Square"))
 sidebar_bg.Filled = true
 sidebar_bg.Color = Color3.fromRGB(15, 15, 15)
 sidebar_bg.Size = Vector2.new(140, 320)
 sidebar_bg.Visible = false
 
 -- Sidebar Accent Line (Вертикальная красная полоска активной вкладки)
-local sidebar_accent = Drawing.new("Square")
+local sidebar_accent = reg(Drawing.new("Square"))
 sidebar_accent.Filled = true
 sidebar_accent.Color = Color3.fromRGB(255, 35, 35)
 sidebar_accent.Size = Vector2.new(3, 22)
 sidebar_accent.Visible = false
 
 -- SKECH Logo Label (Логотип в верхнем левом углу)
-local logo_text = Drawing.new("Text")
+local logo_text = reg(Drawing.new("Text"))
 logo_text.Text = "MATCHA"
 logo_text.Color = Color3.fromRGB(255, 35, 35)
 logo_text.Size = 20
@@ -67,35 +86,35 @@ logo_text.Font = Drawing.Fonts.SystemBold
 logo_text.Visible = false
 
 -- Sidebar Category Items (Тексты категорий слева)
-local cat_player = Drawing.new("Text")
+local cat_player = reg(Drawing.new("Text"))
 cat_player.Text = "Player"
 cat_player.Color = Color3.fromRGB(120, 120, 120)
 cat_player.Size = 14
 cat_player.Font = Drawing.Fonts.SystemBold
 cat_player.Visible = false
 
-local cat_hitbox = Drawing.new("Text")
+local cat_hitbox = reg(Drawing.new("Text"))
 cat_hitbox.Text = "  HitBox"
 cat_hitbox.Color = Color3.fromRGB(255, 255, 255)
 cat_hitbox.Size = 14
 cat_hitbox.Font = Drawing.Fonts.System
 cat_hitbox.Visible = false
 
-local cat_gunmodule = Drawing.new("Text")
+local cat_gunmodule = reg(Drawing.new("Text"))
 cat_gunmodule.Text = "  GunModule"
 cat_gunmodule.Color = Color3.fromRGB(120, 120, 120)
 cat_gunmodule.Size = 14
 cat_gunmodule.Font = Drawing.Fonts.System
 cat_gunmodule.Visible = false
 
-local cat_visuals = Drawing.new("Text")
+local cat_visuals = reg(Drawing.new("Text"))
 cat_visuals.Text = "  Visuals"
 cat_visuals.Color = Color3.fromRGB(120, 120, 120)
 cat_visuals.Size = 14
 cat_visuals.Font = Drawing.Fonts.System
 cat_visuals.Visible = false
 
-local cat_configs = Drawing.new("Text")
+local cat_configs = reg(Drawing.new("Text"))
 cat_configs.Text = "  Configs"
 cat_configs.Color = Color3.fromRGB(120, 120, 120)
 cat_configs.Size = 14
@@ -103,94 +122,94 @@ cat_configs.Font = Drawing.Fonts.System
 cat_configs.Visible = false
 
 -- ------------------------------------------
--- TAB ELEMENTS: HITBOX (ХИТБОКСЫ)
+-- TAB ELEMENTS: HITBOX (ВКЛАДКА ХИТБОКСОВ)
 -- ------------------------------------------
-local card1_bg = Drawing.new("Square")
+local card1_bg = reg(Drawing.new("Square"), "HitBox")
 card1_bg.Filled = true
 card1_bg.Color = Color3.fromRGB(28, 28, 28)
 card1_bg.Size = Vector2.new(330, 130)
 card1_bg.Visible = false
 
-local card1_title = Drawing.new("Text")
+local card1_title = reg(Drawing.new("Text"), "HitBox")
 card1_title.Text = "Hitbox Configuration"
 card1_title.Color = Color3.fromRGB(255, 35, 35)
 card1_title.Size = 15
 card1_title.Font = Drawing.Fonts.SystemBold
 card1_title.Visible = false
 
-local size_status_text = Drawing.new("Text")
+local size_status_text = reg(Drawing.new("Text"), "HitBox")
 size_status_text.Text = "Target Size: " .. tostring(size)
 size_status_text.Color = Color3.fromRGB(230, 230, 230)
 size_status_text.Size = 14
 size_status_text.Font = Drawing.Fonts.System
 size_status_text.Visible = false
 
-local plus_bg = Drawing.new("Square")
+local plus_bg = reg(Drawing.new("Square"), "HitBox")
 plus_bg.Filled = true
 plus_bg.Color = Color3.fromRGB(45, 45, 45)
 plus_bg.Size = Vector2.new(40, 28)
 plus_bg.Visible = false
 
-local plus_text = Drawing.new("Text")
+local plus_text = reg(Drawing.new("Text"), "HitBox")
 plus_text.Text = "+"
 plus_text.Color = Color3.fromRGB(255, 255, 255)
 plus_text.Size = 16
 plus_text.Font = Drawing.Fonts.SystemBold
 plus_text.Visible = false
 
-local minus_bg = Drawing.new("Square")
+local minus_bg = reg(Drawing.new("Square"), "HitBox")
 minus_bg.Filled = true
 minus_bg.Color = Color3.fromRGB(45, 45, 45)
 minus_bg.Size = Vector2.new(40, 28)
 minus_bg.Visible = false
 
-local minus_text = Drawing.new("Text")
+local minus_text = reg(Drawing.new("Text"), "HitBox")
 minus_text.Text = "-"
 minus_text.Color = Color3.fromRGB(255, 255, 255)
 minus_text.Size = 16
 minus_text.Font = Drawing.Fonts.SystemBold
 minus_text.Visible = false
 
-local reset_bg = Drawing.new("Square")
+local reset_bg = reg(Drawing.new("Square"), "HitBox")
 reset_bg.Filled = true
 reset_bg.Color = Color3.fromRGB(255, 35, 35)
 reset_bg.Size = Vector2.new(70, 28)
 reset_bg.Visible = false
 
-local reset_text = Drawing.new("Text")
+local reset_text = reg(Drawing.new("Text"), "HitBox")
 reset_text.Text = "Reset"
 reset_text.Color = Color3.fromRGB(255, 255, 255)
 reset_text.Size = 13
 reset_text.Font = Drawing.Fonts.SystemBold
 reset_text.Visible = false
 
-local card2_bg = Drawing.new("Square")
+local card2_bg = reg(Drawing.new("Square"), "HitBox")
 card2_bg.Filled = true
 card2_bg.Color = Color3.fromRGB(28, 28, 28)
 card2_bg.Size = Vector2.new(330, 130)
 card2_bg.Visible = false
 
-local card2_title = Drawing.new("Text")
+local card2_title = reg(Drawing.new("Text"), "HitBox")
 card2_title.Text = "Main Functions"
 card2_title.Color = Color3.fromRGB(255, 35, 35)
 card2_title.Size = 15
 card2_title.Font = Drawing.Fonts.SystemBold
 card2_title.Visible = false
 
-local toggle_bg = Drawing.new("Square")
+local toggle_bg = reg(Drawing.new("Square"), "HitBox")
 toggle_bg.Filled = true
 toggle_bg.Color = Color3.fromRGB(255, 35, 35)
 toggle_bg.Size = Vector2.new(130, 28)
 toggle_bg.Visible = false
 
-local toggle_text = Drawing.new("Text")
+local toggle_text = reg(Drawing.new("Text"), "HitBox")
 toggle_text.Text = "Hitbox: ENABLED"
 toggle_text.Color = Color3.fromRGB(255, 255, 255)
 toggle_text.Size = 13
 toggle_text.Font = Drawing.Fonts.SystemBold
 toggle_text.Visible = false
 
-local controls_text = Drawing.new("Text")
+local controls_text = reg(Drawing.new("Text"), "HitBox")
 controls_text.Text = "Binds:  [L] Hide UI  |  [Arrows / + -] Size  |  [T] Toggle Hitbox\nTeammates Invisibility: Active\nTarget Component: UpperTorso Only"
 controls_text.Color = Color3.fromRGB(130, 130, 130)
 controls_text.Size = 12
@@ -198,94 +217,94 @@ controls_text.Font = Drawing.Fonts.Monospace
 controls_text.Visible = false
 
 -- ------------------------------------------
--- TAB ELEMENTS: GUNMODULE (ОРУЖИЕ)
+-- TAB ELEMENTS: GUNMODULE (ВКЛАДКА ОРУЖИЯ)
 -- ------------------------------------------
-local gun_card_bg = Drawing.new("Square")
+local gun_card_bg = reg(Drawing.new("Square"), "GunModule")
 gun_card_bg.Filled = true
 gun_card_bg.Color = Color3.fromRGB(28, 28, 28)
 gun_card_bg.Size = Vector2.new(330, 275)
 gun_card_bg.Visible = false
 
-local gun_card_title = Drawing.new("Text")
+local gun_card_title = reg(Drawing.new("Text"), "GunModule")
 gun_card_title.Text = "Weapon Memory Overrides"
 gun_card_title.Color = Color3.fromRGB(255, 35, 35)
 gun_card_title.Size = 15
 gun_card_title.Font = Drawing.Fonts.SystemBold
 gun_card_title.Visible = false
 
-local weapon_ammo_bg = Drawing.new("Square")
+local weapon_ammo_bg = reg(Drawing.new("Square"), "GunModule")
 weapon_ammo_bg.Filled = true
 weapon_ammo_bg.Size = Vector2.new(160, 28)
 weapon_ammo_bg.Visible = false
 
-local weapon_ammo_text = Drawing.new("Text")
+local weapon_ammo_text = reg(Drawing.new("Text"), "GunModule")
 weapon_ammo_text.Text = "Infinite Ammo"
 weapon_ammo_text.Color = Color3.fromRGB(255, 255, 255)
 weapon_ammo_text.Size = 13
 weapon_ammo_text.Font = Drawing.Fonts.SystemBold
 weapon_ammo_text.Visible = false
 
-local weapon_recoil_bg = Drawing.new("Square")
+local weapon_recoil_bg = reg(Drawing.new("Square"), "GunModule")
 weapon_recoil_bg.Filled = true
 weapon_recoil_bg.Size = Vector2.new(160, 28)
 weapon_recoil_bg.Visible = false
 
-local weapon_recoil_text = Drawing.new("Text")
+local weapon_recoil_text = reg(Drawing.new("Text"), "GunModule")
 weapon_recoil_text.Text = "No Recoil & Spread"
 weapon_recoil_text.Color = Color3.fromRGB(255, 255, 255)
 weapon_recoil_text.Size = 13
 weapon_recoil_text.Font = Drawing.Fonts.SystemBold
 weapon_recoil_text.Visible = false
 
-local weapon_fire_bg = Drawing.new("Square")
+local weapon_fire_bg = reg(Drawing.new("Square"), "GunModule")
 weapon_fire_bg.Filled = true
 weapon_fire_bg.Size = Vector2.new(160, 28)
 weapon_fire_bg.Visible = false
 
-local weapon_fire_text = Drawing.new("Text")
-weapon_fire_text.Text = "Rapid Fire & Auto"
+local weapon_fire_text = reg(Drawing.new("Text"), "GunModule")
+weapon_fire_text.Text = "Forced Auto Fire"
 weapon_fire_text.Color = Color3.fromRGB(255, 255, 255)
 weapon_fire_text.Size = 13
 weapon_fire_text.Font = Drawing.Fonts.SystemBold
 weapon_fire_text.Visible = false
 
-local gun_status_footer = Drawing.new("Text")
-gun_status_footer.Text = "Target Structure: ReplicatedStorage.Weapons\nContinuous Memory Injections: ACTIVE via Matcha"
+local gun_status_footer = reg(Drawing.new("Text"), "GunModule")
+gun_status_footer.Text = "Target Structure: Garbage Collector Active States\nContinuous Memory Injections: ACTIVE via Matcha"
 gun_status_footer.Color = Color3.fromRGB(110, 110, 110)
 gun_status_footer.Size = 11
 gun_status_footer.Font = Drawing.Fonts.Monospace
 gun_status_footer.Visible = false
 
 -- ------------------------------------------
--- TAB ELEMENTS: VISUALS (ЭФФЕКТЫ ДОЖДЯ)
+-- TAB ELEMENTS: VISUALS (ВКЛАДКА ВИЗУАЛОВ)
 -- ------------------------------------------
-local visuals_card_bg = Drawing.new("Square")
+local visuals_card_bg = reg(Drawing.new("Square"), "Visuals")
 visuals_card_bg.Filled = true
 visuals_card_bg.Color = Color3.fromRGB(28, 28, 28)
 visuals_card_bg.Size = Vector2.new(330, 130)
 visuals_card_bg.Visible = false
 
-local visuals_card_title = Drawing.new("Text")
+local visuals_card_title = reg(Drawing.new("Text"), "Visuals")
 visuals_card_title.Text = "Environment Visuals"
 visuals_card_title.Color = Color3.fromRGB(255, 35, 35)
 visuals_card_title.Size = 15
 visuals_card_title.Font = Drawing.Fonts.SystemBold
 visuals_card_title.Visible = false
 
-local trails_toggle_bg = Drawing.new("Square")
+local trails_toggle_bg = reg(Drawing.new("Square"), "Visuals")
 trails_toggle_bg.Filled = true
 trails_toggle_bg.Color = Color3.fromRGB(255, 35, 35)
 trails_toggle_bg.Size = Vector2.new(155, 28)
 trails_toggle_bg.Visible = false
 
-local trails_toggle_text = Drawing.new("Text")
+local trails_toggle_text = reg(Drawing.new("Text"), "Visuals")
 trails_toggle_text.Text = "Rain Trails: ENABLED"
 trails_toggle_text.Color = Color3.fromRGB(255, 255, 255)
 trails_toggle_text.Size = 13
 trails_toggle_text.Font = Drawing.Fonts.SystemBold
 trails_toggle_text.Visible = false
 
-local visuals_info_text = Drawing.new("Text")
+local visuals_info_text = reg(Drawing.new("Text"), "Visuals")
 visuals_info_text.Text = "Renders custom expanding ripple rings under enemy feet\nwhen they move. Dynamically calculated via screen-space.\nEffect performance optimized for Matcha LuaVM."
 visuals_info_text.Color = Color3.fromRGB(130, 130, 130)
 visuals_info_text.Size = 12
@@ -293,48 +312,48 @@ visuals_info_text.Font = Drawing.Fonts.Monospace
 visuals_info_text.Visible = false
 
 -- ------------------------------------------
--- TAB ELEMENTS: CONFIGS (СИСТЕМА СОХРАНЕНИЯ)
+-- TAB ELEMENTS: CONFIGS (ВКЛАДКА СОХРАНЕНИЯ)
 -- ------------------------------------------
-local cfg_card_bg = Drawing.new("Square")
+local cfg_card_bg = reg(Drawing.new("Square"), "Configs")
 cfg_card_bg.Filled = true
 cfg_card_bg.Color = Color3.fromRGB(28, 28, 28)
 cfg_card_bg.Size = Vector2.new(330, 275)
 cfg_card_bg.Visible = false
 
-local cfg_card_title = Drawing.new("Text")
+local cfg_card_title = reg(Drawing.new("Text"), "Configs")
 cfg_card_title.Text = "Profile Configuration Manager"
 cfg_card_title.Color = Color3.fromRGB(255, 35, 35)
 cfg_card_title.Size = 15
 cfg_card_title.Font = Drawing.Fonts.SystemBold
 cfg_card_title.Visible = false
 
-local cfg_save_bg = Drawing.new("Square")
+local cfg_save_bg = reg(Drawing.new("Square"), "Configs")
 cfg_save_bg.Filled = true
 cfg_save_bg.Size = Vector2.new(150, 28)
 cfg_save_bg.Color = Color3.fromRGB(50, 150, 50)
 cfg_save_bg.Visible = false
 
-local cfg_save_text = Drawing.new("Text")
+local cfg_save_text = reg(Drawing.new("Text"), "Configs")
 cfg_save_text.Text = "Save Active Setup"
 cfg_save_text.Color = Color3.fromRGB(255, 255, 255)
 cfg_save_text.Size = 13
 cfg_save_text.Font = Drawing.Fonts.SystemBold
 cfg_save_text.Visible = false
 
-local cfg_load_bg = Drawing.new("Square")
+local cfg_load_bg = reg(Drawing.new("Square"), "Configs")
 cfg_load_bg.Filled = true
 cfg_load_bg.Size = Vector2.new(150, 28)
 cfg_load_bg.Color = Color3.fromRGB(255, 35, 35)
 cfg_load_bg.Visible = false
 
-local cfg_load_text = Drawing.new("Text")
+local cfg_load_text = reg(Drawing.new("Text"), "Configs")
 cfg_load_text.Text = "Load Saved Setup"
 cfg_load_text.Color = Color3.fromRGB(255, 255, 255)
 cfg_load_text.Size = 13
 cfg_load_text.Font = Drawing.Fonts.SystemBold
 cfg_load_text.Visible = false
 
-local cfg_status_text = Drawing.new("Text")
+local cfg_status_text = reg(Drawing.new("Text"), "Configs")
 cfg_status_text.Text = "Storage Slot 1: EMPTY"
 cfg_status_text.Color = Color3.fromRGB(140, 140, 140)
 cfg_status_text.Size = 13
@@ -379,7 +398,7 @@ local function updateElementPositions()
     reset_text.Position = reset_bg.Position + Vector2.new(16, 5)
     card2_bg.Position = base + Vector2.new(155, 160)
     card2_title.Position = card2_bg.Position + Vector2.new(15, 12)
-    toggle_bg.Position = card2_bg.Position + Vector2.new(15, 42)
+    toggle_bg.Position = base + Vector2.new(155, 202)
     toggle_text.Position = toggle_bg.Position + Vector2.new(14, 5)
     controls_text.Position = card2_bg.Position + Vector2.new(15, 85)
     
@@ -414,36 +433,36 @@ end
 local function updateMenuUI()
     size_status_text.Text = "Target Size: " .. tostring(size)
     
-    -- Синхронизация переключателей
+    -- Синхронизация визуального стиля кнопок-тумблеров
     if isHitboxEnabled then toggle_bg.Color = Color3.fromRGB(255, 35, 35) toggle_text.Text = "Hitbox: ENABLED" else toggle_bg.Color = Color3.fromRGB(55, 55, 55) toggle_text.Text = "Hitbox: DISABLED" end
     if isTrailsEnabled then trails_toggle_bg.Color = Color3.fromRGB(255, 35, 35) trails_toggle_text.Text = "Rain Trails: ENABLED" else trails_toggle_bg.Color = Color3.fromRGB(55, 55, 55) trails_toggle_text.Text = "Rain Trails: DISABLED" end
-    if isAmmoEnabled then weapon_ammo_bg.Color = Color3.fromRGB(255, 35, 35) else weapon_ammo_bg.Color = Color3.fromRGB(55, 55, 55) end
-    if isRecoilEnabled then weapon_recoil_bg.Color = Color3.fromRGB(255, 35, 35) else weapon_recoil_bg.Color = Color3.fromRGB(55, 55, 55) end
-    if isFireRateEnabled then weapon_fire_bg.Color = Color3.fromRGB(255, 35, 35) else weapon_fire_bg.Color = Color3.fromRGB(55, 55, 55) end
+    weapon_ammo_bg.Color = isAmmoEnabled and Color3.fromRGB(255, 35, 35) or Color3.fromRGB(55, 55, 55)
+    weapon_recoil_bg.Color = isRecoilEnabled and Color3.fromRGB(255, 35, 35) or Color3.fromRGB(55, 55, 55)
+    weapon_fire_bg.Color = isFireRateEnabled and Color3.fromRGB(255, 35, 35) or Color3.fromRGB(55, 55, 55)
 
-    -- Подсветка категорий
+    -- Подсветка категорий сайдбара
     cat_hitbox.Color = (currentTab == "HitBox") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
     cat_gunmodule.Color = (currentTab == "GunModule") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
     cat_visuals.Color = (currentTab == "Visuals") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
     cat_configs.Color = (currentTab == "Configs") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
     
-    -- Видимость фреймов
-    menu_bg.Visible = isMenuOpen sidebar_bg.Visible = isMenuOpen sidebar_accent.Visible = isMenuOpen logo_text.Visible = isMenuOpen cat_player.Visible = isMenuOpen cat_hitbox.Visible = isMenuOpen cat_gunmodule.Visible = isMenuOpen cat_visuals.Visible = isMenuOpen cat_configs.Visible = isMenuOpen
+    -- Изменено: Исправлен парсинг перебора структуры (Убран баг вылета LuaVM)
+    for i = 1, #global_ui do
+        global_ui[i].Visible = isMenuOpen
+    end
     
-    local isHitBoxTab = (isMenuOpen and currentTab == "HitBox")
-    card1_bg.Visible = isHitBoxTab card1_title.Visible = isHitBoxTab size_status_text.Visible = isHitBoxTab plus_bg.Visible = isHitBoxTab plus_text.Visible = isHitBoxTab minus_bg.Visible = isHitBoxTab minus_text.Visible = isHitBoxTab reset_bg.Visible = isHitBoxTab reset_text.Visible = isHitBoxTab card2_bg.Visible = isHitBoxTab card2_title.Visible = isHitBoxTab toggle_bg.Visible = isHitBoxTab toggle_text.Visible = isHitBoxTab controls_text.Visible = isHitBoxTab
+    for tabName, ui_list in pairs(tab_ui) do
+        local shouldShow = (isMenuOpen and currentTab == tabName)
+        for i = 1, #ui_list do
+            ui_list[i].Visible = shouldShow
+        end
+    end
     
-    local isGunModuleTab = (isMenuOpen and currentTab == "GunModule")
-    gun_card_bg.Visible = isGunModuleTab gun_card_title.Visible = isGunModuleTab weapon_ammo_bg.Visible = isGunModuleTab weapon_ammo_text.Visible = isGunModuleTab weapon_recoil_bg.Visible = isGunModuleTab weapon_recoil_text.Visible = isGunModuleTab weapon_fire_bg.Visible = isGunModuleTab weapon_fire_text.Visible = isGunModuleTab gun_status_footer.Visible = isGunModuleTab
-
-    local isVisualsTab = (isMenuOpen and currentTab == "Visuals")
-    visuals_card_bg.Visible = isVisualsTab visuals_card_title.Visible = isVisualsTab trails_toggle_bg.Visible = isVisualsTab trails_toggle_text.Visible = isVisualsTab visuals_info_text.Visible = isVisualsTab
-    
-    local isConfigsTab = (isMenuOpen and currentTab == "Configs")
-    cfg_card_bg.Visible = isConfigsTab cfg_card_title.Visible = isConfigsTab cfg_save_bg.Visible = isConfigsTab cfg_save_text.Visible = isConfigsTab cfg_load_bg.Visible = isConfigsTab cfg_load_text.Visible = isConfigsTab cfg_status_text.Visible = isConfigsTab
-
     if isMenuOpen then updateElementPositions() end
 end
+
+-- Инициализация координат при старте
+updateElementPositions()
 
 -- ==========================================
 -- RAIN TRAILS CREATION FUNCTION
@@ -517,14 +536,21 @@ end
 RunService.Heartbeat:Connect(function()
     local currentTime = tick()
     
-    -- Отрендерить капли дождя
+    -- Отрендерить капли дождя покадрово на экране через безопасный расчет
     for i = #activeTrails, 1, -1 do
         local trail = activeTrails[i]
         local age = currentTime - trail.spawnTime
         if age >= trail.maxLife then trail.obj:Remove() table.remove(activeTrails, i) else
             if isTrailsEnabled then
                 local screenPos, onScreen = WorldToScreen(trail.pos)
-                if onScreen then trail.obj.Position = screenPos trail.obj.Radius = 3 + (age * 15) trail.obj.Transparency = 1 - (age / trail.maxLife) trail.obj.Visible = true else trail.obj.Visible = false end
+                if onScreen and screenPos and screenPos.X and screenPos.Y then 
+                    trail.obj.Position = screenPos 
+                    trail.obj.Radius = 3 + (age * 15) 
+                    trail.obj.Transparency = 1 - (age / trail.maxLife) 
+                    trail.obj.Visible = true 
+                else 
+                    trail.obj.Visible = false 
+                end
             else trail.obj.Visible = false end
         end
     end
@@ -543,28 +569,35 @@ RunService.Heartbeat:Connect(function()
     else isDragging = false end
     if isDragging then menu_bg.Position = Vector2.new(mx - dragOffset.X, my - dragOffset.Y) updateElementPositions() end
     
-    -- Клик-система меню
+    -- Клик-система интерактивного меню SKECH
     if mouse1Down and not wasMousePressed and not isDragging then
         local menuPos = menu_bg.Position
         
-        -- Выбор категорий сайдбара
+        -- Переключение вкладок в сайдбаре
         if isMouseInArea(menuPos + Vector2.new(0, 80), Vector2.new(140, 30)) then currentTab = "HitBox" updateMenuUI()
         elseif isMouseInArea(menuPos + Vector2.new(0, 112), Vector2.new(140, 30)) then currentTab = "GunModule" updateMenuUI()
         elseif isMouseInArea(menuPos + Vector2.new(0, 145), Vector2.new(140, 30)) then currentTab = "Visuals" updateMenuUI()
         elseif isMouseInArea(menuPos + Vector2.new(0, 178), Vector2.new(140, 30)) then currentTab = "Configs" updateMenuUI() 
         end
         
+        -- Вкладка хитбоксов
         if currentTab == "HitBox" then
             if isMouseInArea(plus_bg.Position, plus_bg.Size) then size = size + 1 updateMenuUI() triggerInstantHitboxUpdate()
             elseif isMouseInArea(minus_bg.Position, minus_bg.Size) then if size > 1 then size = size - 1 updateMenuUI() triggerInstantHitboxUpdate() end
             elseif isMouseInArea(reset_bg.Position, reset_bg.Size) then size = defaultSize updateMenuUI() triggerInstantHitboxUpdate()
             elseif isMouseInArea(toggle_bg.Position, toggle_bg.Size) then isHitboxEnabled = not isHitboxEnabled updateMenuUI() triggerInstantHitboxUpdate() end
+        
+        -- Вкладка оружия (GunModule)
         elseif currentTab == "GunModule" then
             if isMouseInArea(weapon_ammo_bg.Position, weapon_ammo_bg.Size) then isAmmoEnabled = not isAmmoEnabled updateMenuUI()
             elseif isMouseInArea(weapon_recoil_bg.Position, weapon_recoil_bg.Size) then isRecoilEnabled = not isRecoilEnabled updateMenuUI()
             elseif isMouseInArea(weapon_fire_bg.Position, weapon_fire_bg.Size) then isFireRateEnabled = not isFireRateEnabled updateMenuUI() end
+        
+        -- Вкладка визуалов (Visuals)
         elseif currentTab == "Visuals" then
             if isMouseInArea(trails_toggle_bg.Position, trails_toggle_bg.Size) then isTrailsEnabled = not isTrailsEnabled updateMenuUI() end
+        
+        -- Вкладка профилей (Configs)
         elseif currentTab == "Configs" then
             if isMouseInArea(cfg_save_bg.Position, cfg_save_bg.Size) then
                 savedConfig = { size = size, isHitboxEnabled = isHitboxEnabled, isTrailsEnabled = isTrailsEnabled, isAmmoEnabled = isAmmoEnabled, isRecoilEnabled = isRecoilEnabled, isFireRateEnabled = isFireRateEnabled }
@@ -595,28 +628,29 @@ end)
 -- ==========================================
 
 while true do
+    -- НАДЕЖНЫЙ ПРЯМОЙ ИНЖЕКТ ПАРАМЕТРОВ ОРУЖИЯ В ОПЕРАТИВНУЮ ПАМЯТЬ ЧЕРЕЗ СБОРЩИК МУСОРА MATCHA
     pcall(function()
-        local weaponsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("Weapons")
-        if weaponsFolder then
-            local allWeapons = weaponsFolder:GetChildren()
-            for wIndex = 1, #allWeapons do
-                local weapon = allWeapons[wIndex]
-                if isAmmoEnabled then
-                    local ammo = weapon:FindFirstChild("Ammo") local storedAmmo = weapon:FindFirstChild("StoredAmmo")
-                    if ammo then ammo.Value = customAmmoValue end if storedAmmo then storedAmmo.Value = customStoredAmmoValue end
-                end
-                if isRecoilEnabled then
-                    local maxSpread = weapon:FindFirstChild("MaxSpread") local recoilControl = weapon:FindFirstChild("RecoilControl")
-                    if maxSpread then maxSpread.Value = customMaxSpreadValue end if recoilControl then recoilControl.Value = customRecoilControlValue end
-                end
-                if isFireRateEnabled then
-                    local fireRate = weapon:FindFirstChild("FireRate") local reloadTime = weapon:FindFirstChild("ReloadTime") local autoMode = weapon:FindFirstChild("Auto")
-                    if fireRate then fireRate.Value = customFireRateValue end if reloadTime then reloadTime.Value = customReloadTimeValue end if autoMode then autoMode.Value = customAutoValue end
-                end
-            end
+        if isAmmoEnabled then
+            setgc("Ammo", customAmmoValue)
+            setgc("MagAmmo", customAmmoValue)
+            setgc("StoredAmmo", customStoredAmmoValue)
+        end
+        if isRecoilEnabled then
+            setgc("MaxSpread", customMaxSpreadValue)
+            setgc("Spread", customMaxSpreadValue)
+            setgc("SpreadAngle", customMaxSpreadValue)
+            setgc("RecoilControl", customRecoilControlValue)
+            setgc("CameraRecoilMult", customRecoilControlValue)
+        end
+        
+        -- Тумблер Forced Auto Fire переписывает ТОЛЬКО переменные зажима в памяти
+        if isFireRateEnabled then
+            setgc("Auto", customAutoValue)
+            setgc("Automatic", customAutoValue)
         end
     end)
 
+    -- ОБРАБОТКА ХИТБОКСОВ И ВИЗУАЛОВ ИГРОКОВ В ПАМЯТИ ПРОЦЕССА
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
         local myTeamName, myTeamAddress = nil, nil
