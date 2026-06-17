@@ -149,26 +149,26 @@ local function triggerInstantHitboxUpdate()
     local localPlayer = game.Players.LocalPlayer
     if not localPlayer then return end
 
-    local allPlayers = game.Players:GetPlayers() [cite: 41]
+    local allPlayers = game.Players:GetPlayers()
     for i = 1, #allPlayers do
         local player = allPlayers[i]
         
-        -- Пропуск себя по адресу памяти [cite: 40]
+        -- Пропуск себя по адресу памяти
         if player.Address == localPlayer.Address then continue end
         
-        -- Защита команды по адресам памяти из Matcha [cite: 40, 41]
+        -- Защита команды по адресам памяти из Matcha
         if player.Team and localPlayer.Team and player.Team.Address == localPlayer.Team.Address then 
             continue 
         end
         
-        local character = player.Character [cite: 41]
+        local character = player.Character
         if character then
-            -- Принудительное моментальное изменение памяти всех указанных костей
+            -- Моментальная безусловная запись нового размера в память
             for j = 1, #iter do
                 local partName = iter[j]
-                local hitbox = character:FindFirstChild(partName) [cite: 41]
+                local hitbox = character:FindFirstChild(partName)
                 if hitbox then
-                    hitbox.Size = Vector3.new(size, size, size) [cite: 48]
+                    hitbox.Size = Vector3.new(size, size, size)
                     hitbox.CanCollide = false
                 end
             end
@@ -180,33 +180,33 @@ end
 -- INTERACTION, DRAGGING & CLICK DETECTION
 -- ==========================================
 
-local UserInputService = game:GetService("UserInputService") [cite: 42]
-local RunService = game:GetService("RunService") [cite: 42]
-local playerMouse = game.Players.LocalPlayer:GetMouse() [cite: 41]
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local playerMouse = game.Players.LocalPlayer:GetMouse()
 
 local isDragging = false
-local dragOffset = Vector2.new(0, 0) [cite: 88]
+local dragOffset = Vector2.new(0, 0)
 local wasMousePressed = false
 
 -- Helper function to check if mouse coordinates are inside an element bounding box
 local function isMouseInArea(pos, sizeElement)
-    local mx, my = playerMouse.X, playerMouse.Y [cite: 41]
+    local mx, my = playerMouse.X, playerMouse.Y
     return mx >= pos.X and mx <= pos.X + sizeElement.X and my >= pos.Y and my <= pos.Y + sizeElement.Y
 end
 
--- Heartbeat loop to handle frame-by-frame drag and click calculations [cite: 45]
-RunService.Heartbeat:Connect(function() [cite: 45]
+-- Heartbeat loop to handle frame-by-frame drag and click calculations
+RunService.Heartbeat:Connect(function()
     if not isMenuOpen then return end
     
-    local mouse1Down = ismouse1pressed() [cite: 20]
-    local mx, my = playerMouse.X, playerMouse.Y [cite: 41]
+    local mouse1Down = ismouse1pressed()
+    local mx, my = playerMouse.X, playerMouse.Y
     
     -- Drag Logic (Top Title Bar Area: 40px height)
     if mouse1Down then
         if not isDragging and not wasMousePressed then
-            if isMouseInArea(menu_bg.Position, Vector2.new(menu_bg.Size.X, 40)) then [cite: 88]
+            if isMouseInArea(menu_bg.Position, Vector2.new(menu_bg.Size.X, 40)) then
                 isDragging = true
-                dragOffset = Vector2.new(mx - menu_bg.Position.X, my - menu_bg.Position.Y) [cite: 88]
+                dragOffset = Vector2.new(mx - menu_bg.Position.X, my - menu_bg.Position.Y)
             end
         end
     else
@@ -214,7 +214,7 @@ RunService.Heartbeat:Connect(function() [cite: 45]
     end
     
     if isDragging then
-        menu_bg.Position = Vector2.new(mx - dragOffset.X, my - dragOffset.Y) [cite: 88]
+        menu_bg.Position = Vector2.new(mx - dragOffset.X, my - dragOffset.Y)
         updateElementPositions()
     end
     
@@ -244,9 +244,8 @@ end)
 -- KEYBOARD INPUT (KEYBINDS GLOBAL)
 -- ==========================================
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed) [cite: 42]
-    -- Фильтр gameProcessed полностью удален для клавиш изменения размера,
-    -- чтобы они работали во время игры при открытом меню!
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- Фильтр gameProcessed убран, чтобы бинды + и - нажимались прямо во время катки
     
     -- [L] Открытие/Закрытие меню
     if input.KeyCode == Enum.KeyCode.L then
@@ -254,7 +253,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed) [cite: 42]
         updateMenuUI()
     end
     
-    -- Глобальные хоткеи: теперь работают всегда и мгновенно
+    -- Глобальные хоткеи: работают всегда и мгновенно применяют размер
     if input.KeyCode == Enum.KeyCode.Up or input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.Plus or input.KeyCode == Enum.KeyCode.KeypadPlus then
         size = size + 1
         updateMenuUI()
@@ -281,26 +280,26 @@ end)
 while true do
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
-        local allPlayers = game.Players:GetPlayers() [cite: 41]
+        local allPlayers = game.Players:GetPlayers()
         for i = 1, #allPlayers do
             local player = allPlayers[i]
             
-            -- Пропуск себя по адресу памяти [cite: 40]
+            -- Пропуск себя по адресу памяти
             if player.Address == localPlayer.Address then continue end
             
-            -- Защита команды по адресам памяти из Matcha [cite: 40, 41]
+            -- Защита команды по адресам памяти из логов Matcha
             if player.Team and localPlayer.Team and player.Team.Address == localPlayer.Team.Address then 
                 continue 
             end
             
-            local character = player.Character [cite: 41]
+            local character = player.Character
             if character then
-                -- Безусловная жесткая перезапись памяти размера (без лишних проверок)
+                -- Безусловная перезапись памяти без проверки старого размера
                 for j = 1, #iter do
                     local partName = iter[j]
-                    local hitbox = character:FindFirstChild(partName) [cite: 41]
+                    local hitbox = character:FindFirstChild(partName)
                     if hitbox then
-                        hitbox.Size = Vector3.new(size, size, size) [cite: 48]
+                        hitbox.Size = Vector3.new(size, size, size)
                         hitbox.CanCollide = false
                     end
                 end
@@ -308,6 +307,6 @@ while true do
         end
     end
     
-    -- Оптимальная частота обновления для внешнего плагина памяти
-    wait(0.05) [cite: 23]
+    -- Высокая скорость цикла (0.05с) ловит всех ресающихся игроков "на лету"
+    wait(0.05)
 end
