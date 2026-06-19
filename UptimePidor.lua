@@ -7,7 +7,7 @@ local isHitboxEnabled = true
 local isTrailsEnabled = true 
 local currentTab = "HitBox" -- Активная вкладка меню ("HitBox", "GunModule", "Visuals", "Configs")
 
--- Переменные кодинга оружия (GunModule - значения для прямой записи в память)
+-- Переменные кодинга оружия (GunModule - значения для записи)
 local isAmmoEnabled = false      
 local customAmmoValue = 999       
 local customStoredAmmoValue = 300 
@@ -19,8 +19,9 @@ local customRecoilControlValue = 0
 local isFireRateEnabled = false  -- Состояние тумблера Forced Auto Fire
 local customAutoValue = true      
 
--- Система локального сохранения конфигураций в памяти плагина
-local savedConfig = nil
+-- Хранилище конфигурации внутри текущей сессии памяти скрипта
+local savedConfigSessionTable = nil
+local gcCache = nil -- Таблица кэша памяти для applygc
 
 -- Целью хитбокса является исключительно UpperTorso
 local iter = {
@@ -48,6 +49,15 @@ local function reg(obj, tabName)
         table.insert(global_ui, obj)
     end
     return obj
+end
+
+-- Функция обновления кэша сборщика мусора (согласно разделу Garbage Collector документации)
+local function refreshMemoryCache()
+    if isAmmoEnabled or isRecoilEnabled or isFireRateEnabled then
+        gcCache = getgc({ "Ammo", "MagAmmo", "StoredAmmo", "MaxSpread", "Spread", "SpreadAngle", "RecoilControl", "CameraRecoilMult", "Auto", "Automatic" })
+    else
+        gcCache = nil
+    end
 end
 
 -- ==========================================
@@ -446,7 +456,7 @@ local function updateMenuUI()
     cat_visuals.Color = (currentTab == "Visuals") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
     cat_configs.Color = (currentTab == "Configs") and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
     
-    -- Изменено: Исправлен парсинг перебора структуры (Убран баг вылета LuaVM)
+    -- Оптимизированный перебор структуры видимости без лагов LuaVM
     for i = 1, #global_ui do
         global_ui[i].Visible = isMenuOpen
     end
@@ -533,6 +543,7 @@ local function isMouseInArea(pos, sizeElement)
     return mx >= pos.X and mx <= pos.X + sizeElement.X and my >= pos.Y and my <= pos.Y + sizeElement.Y
 end
 
+-- Покадровое обновление для плавных трейлов, перетаскивания и чистой обработки кликов
 RunService.Heartbeat:Connect(function()
     local currentTime = tick()
     
@@ -559,6 +570,7 @@ RunService.Heartbeat:Connect(function()
     local mouse1Down = ismouse1pressed()
     local mx, my = playerMouse.X, playerMouse.Y
     
+    -- Перетаскивание интерфейса
     if mouse1Down then
         if not isDragging and not wasMousePressed then
             if isMouseInArea(menu_bg.Position, Vector2.new(menu_bg.Size.X, 40)) then
@@ -569,7 +581,7 @@ RunService.Heartbeat:Connect(function()
     else isDragging = false end
     if isDragging then menu_bg.Position = Vector2.new(mx - dragOffset.X, my - dragOffset.Y) updateElementPositions() end
     
-    -- Клик-система интерактивного меню SKECH
+    -- Клик-система: нативно использует индивидуальный клик через Edge Detection в Heartbeat
     if mouse1Down and not wasMousePressed and not isDragging then
         local menuPos = menu_bg.Position
         
@@ -589,22 +601,45 @@ RunService.Heartbeat:Connect(function()
         
         -- Вкладка оружия (GunModule)
         elseif currentTab == "GunModule" then
-            if isMouseInArea(weapon_ammo_bg.Position, weapon_ammo_bg.Size) then isAmmoEnabled = not isAmmoEnabled updateMenuUI()
-            elseif isMouseInArea(weapon_recoil_bg.Position, weapon_recoil_bg.Size) then isRecoilEnabled = not isRecoilEnabled updateMenuUI()
-            elseif isMouseInArea(weapon_fire_bg.Position, weapon_fire_bg.Size) then isFireRateEnabled = not isFireRateEnabled updateMenuUI() end
+            if isMouseInArea(weapon_ammo_bg.Position, weapon_ammo_bg.Size) then isAmmoEnabled = not isAmmoEnabled updateMenuUI() refreshMemoryCache()
+            elseif isMouseInArea(weapon_recoil_bg.Position, weapon_recoil_bg.Size) then isRecoilEnabled = not isRecoilEnabled updateMenuUI() refreshMemoryCache()
+            elseif isMouseInArea(weapon_fire_bg.Position, weapon_fire_bg.Size) then isFireRateEnabled = not isFireRateEnabled updateMenuUI() refreshMemoryCache() end
         
         -- Вкладка визуалов (Visuals)
         elseif currentTab == "Visuals" then
             if isMouseInArea(trails_toggle_bg.Position, trails_toggle_bg.Size) then isTrailsEnabled = not isTrailsEnabled updateMenuUI() end
         
-        -- Вкладка профилей (Configs)
+        -- Вкладка профилей (Configs - Надежное сессионное сохранение таблиц)
         elseif currentTab == "Configs" then
             if isMouseInArea(cfg_save_bg.Position, cfg_save_bg.Size) then
-                savedConfig = { size = size, isHitboxEnabled = isHitboxEnabled, isTrailsEnabled = isTrailsEnabled, isAmmoEnabled = isAmmoEnabled, isRecoilEnabled = isRecoilEnabled, isFireRateEnabled = isFireRateEnabled }
-                cfg_status_text.Text = "Storage Slot 1: STATE SAVED SUCCESSFULLY" updateMenuUI()
-            elseif isMouseInArea(cfg_load_bg.Position, cfg_load_bg.Size) and savedConfig ~= nil then
-                size = savedConfig.size isHitboxEnabled = savedConfig.isHitboxEnabled isTrailsEnabled = savedConfig.isTrailsEnabled isAmmoEnabled = savedConfig.isAmmoEnabled isRecoilEnabled = savedConfig.isRecoilEnabled isFireRateEnabled = savedConfig.isFireRateEnabled
-                cfg_status_text.Text = "Storage Slot 1: CONFIGURATION REPLICATED" updateMenuUI() triggerInstantHitboxUpdate()
+                -- Прямое сохранение состояний в таблицу сессии
+                savedConfigSessionTable = { 
+                    size = size, 
+                    isHitboxEnabled = isHitboxEnabled, 
+                    isTrailsEnabled = isTrailsEnabled, 
+                    isAmmoEnabled = isAmmoEnabled, 
+                    isRecoilEnabled = isRecoilEnabled, 
+                    isFireRateEnabled = isFireRateEnabled 
+                }
+                cfg_status_text.Text = "Storage Slot 1: STATE SAVED SUCCESSFULLY"
+                updateMenuUI()
+            elseif isMouseInArea(cfg_load_bg.Position, cfg_load_bg.Size) then
+                if savedConfigSessionTable ~= nil then
+                    size = savedConfigSessionTable.size or size 
+                    isHitboxEnabled = savedConfigSessionTable.isHitboxEnabled 
+                    isTrailsEnabled = savedConfigSessionTable.isTrailsEnabled 
+                    isAmmoEnabled = savedConfigSessionTable.isAmmoEnabled 
+                    isRecoilEnabled = savedConfigSessionTable.isRecoilEnabled 
+                    isFireRateEnabled = savedConfigSessionTable.isFireRateEnabled
+                    
+                    cfg_status_text.Text = "Storage Slot 1: CONFIGURATION REPLICATED"
+                    refreshMemoryCache()
+                    updateMenuUI() 
+                    triggerInstantHitboxUpdate()
+                else
+                    cfg_status_text.Text = "Storage Slot 1: EMPTY"
+                    updateMenuUI()
+                end
             end
         end
     end
@@ -623,34 +658,48 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     elseif input.KeyCode == Enum.KeyCode.T then isHitboxEnabled = not isHitboxEnabled updateMenuUI() triggerInstantHitboxUpdate() end
 end)
 
+-- Первичный сбор кэша при старте
+refreshMemoryCache()
+
 -- ==========================================
 -- CORE HITBOX & WEAPON MODIFICATION LOOP
 -- ==========================================
 
-while true do
-    -- НАДЕЖНЫЙ ПРЯМОЙ ИНЖЕКТ ПАРАМЕТРОВ ОРУЖИЯ В ОПЕРАТИВНУЮ ПАМЯТЬ ЧЕРЕЗ СБОРЩИК МУСОРА MATCHA
-    pcall(function()
-        if isAmmoEnabled then
-            setgc("Ammo", customAmmoValue)
-            setgc("MagAmmo", customAmmoValue)
-            setgc("StoredAmmo", customStoredAmmoValue)
+-- Поток для циклической записи в кэшируемую память через applygc (согласно правилам доков)
+task.spawn(function()
+    while true do
+        if gcCache then
+            pcall(function()
+                if isAmmoEnabled then
+                    applygc(gcCache, {
+                        Ammo = customAmmoValue,
+                        MagAmmo = customAmmoValue,
+                        StoredAmmo = customStoredAmmoValue
+                    })
+                end
+                if isRecoilEnabled then
+                    applygc(gcCache, {
+                        MaxSpread = customMaxSpreadValue,
+                        Spread = customMaxSpreadValue,
+                        SpreadAngle = customMaxSpreadValue,
+                        RecoilControl = customRecoilControlValue,
+                        CameraRecoilMult = customRecoilControlValue
+                    })
+                end
+                if isFireRateEnabled then
+                    applygc(gcCache, {
+                        Auto = customAutoValue,
+                        Automatic = customAutoValue
+                    })
+                end
+            end)
         end
-        if isRecoilEnabled then
-            setgc("MaxSpread", customMaxSpreadValue)
-            setgc("Spread", customMaxSpreadValue)
-            setgc("SpreadAngle", customMaxSpreadValue)
-            setgc("RecoilControl", customRecoilControlValue)
-            setgc("CameraRecoilMult", customRecoilControlValue)
-        end
-        
-        -- Тумблер Forced Auto Fire переписывает ТОЛЬКО переменные зажима в памяти
-        if isFireRateEnabled then
-            setgc("Auto", customAutoValue)
-            setgc("Automatic", customAutoValue)
-        end
-    end)
+        task.wait(0.1)
+    end
+end)
 
-    -- ОБРАБОТКА ХИТБОКСОВ И ВИЗУАЛОВ ИГРОКОВ В ПАМЯТИ ПРОЦЕССА
+-- Основной рабочий цикл хитбоксов и визуалов игроков
+while true do
     local localPlayer = game.Players.LocalPlayer
     if localPlayer then
         local myTeamName, myTeamAddress = nil, nil
@@ -696,5 +745,5 @@ while true do
             end
         end
     end
-    wait(0.1)
+    task.wait(0.1)
 end
