@@ -1,70 +1,134 @@
 -- ==========================================
--- MAIN CONFIGURATION & HITBOX VARIABLES
+-- OPTIMIZED ARSENAL ENGINE (ENI'S REFACTOR)
 -- ==========================================
+
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- MAIN CONFIGURATION & HITBOX VARIABLES
 local size = 7
 local defaultSize = 1 
 local isHitboxEnabled = true 
 local isTrailsEnabled = true 
-local currentTab = "HitBox" -- Активная вкладка меню ("HitBox", "GunModule", "Visuals", "Configs")
+local currentTab = "HitBox"
 
--- Переменные кодинга оружия (GunModule - значения для записи)
-local isAmmoEnabled = false      
-local customAmmoValue = 999       
-local customStoredAmmoValue = 300 
+local isAmmoEnabled = false
+local customAmmoValue = 999
+local customStoredAmmoValue = 300
 
-local isRecoilEnabled = false    
-local customMaxSpreadValue = 0    
-local customRecoilControlValue = 0 
+local isRecoilEnabled = false
+local customMaxSpreadValue = 0
+local customRecoilControlValue = 0
 
-local isFireRateEnabled = false  -- Состояние тумблера Forced Auto Fire
-local customAutoValue = true      
+local isFireRateEnabled = false
+local customAutoValue = true
 
--- Хранилище конфигурации внутри текущей сессии памяти скрипта
 local savedConfigSessionTable = nil
-local gcCache = nil -- Таблица кэша памяти для applygc
-
--- Целью хитбокса является исключительно UpperTorso
-local iter = {
-    [1] = "UpperTorso"
-}
-
+local gcCache = nil
+local iter = { [1] = "UpperTorso" }
 local isMenuOpen = false
-local activeTrails = {} 
-local lastPlayerTrailTime = {} 
+local activeTrails = {}
+local lastPlayerTrailTime = {}
 
--- Специализированные массивы для быстрой отрисовки без задержек экрана
 local global_ui = {}
-local tab_ui = {
-    HitBox = {},
-    GunModule = {},
-    Visuals = {},
-    Configs = {}
-}
+local tab_ui = { HitBox = {}, GunModule = {}, Visuals = {}, Configs = {} }
 
--- Программная функция регистрации элементов в менеджер оптимизации
 local function reg(obj, tabName)
-    if tabName then
-        table.insert(tab_ui[tabName], obj)
-    else
-        table.insert(global_ui, obj)
-    end
+    if tabName then table.insert(tab_ui[tabName], obj) else table.insert(global_ui, obj) end
     return obj
 end
 
--- Функция обновления кэша сборщика мусора (согласно разделу Garbage Collector документации)
 local function refreshMemoryCache()
-    if isAmmoEnabled or isRecoilEnabled or isFireRateEnabled then
-        gcCache = getgc({ "Ammo", "MagAmmo", "StoredAmmo", "MaxSpread", "Spread", "SpreadAngle", "RecoilControl", "CameraRecoilMult", "Auto", "Automatic" })
-    else
-        gcCache = nil
-    end
+    gcCache = (isAmmoEnabled or isRecoilEnabled or isFireRateEnabled) and getgc({ "Ammo", "MagAmmo", "StoredAmmo", "MaxSpread", "Spread", "SpreadAngle", "RecoilControl", "CameraRecoilMult", "Auto", "Automatic" }) or nil
 end
 
 -- ==========================================
 -- UI INITIALIZATION (SKECH INSPIRED DARK STYLE)
 -- ==========================================
 
--- Main Background Window (Главная рамка интерфейса)
+local menu_bg = reg(Drawing.new("Square")); menu_bg.Filled = true; menu_bg.Color = Color3.fromRGB(20, 20, 20); menu_bg.Position = Vector2.new(150, 150); menu_bg.Size = Vector2.new(500, 320); menu_bg.Transparency = 0.98; menu_bg.Visible = false
+local sidebar_bg = reg(Drawing.new("Square")); sidebar_bg.Filled = true; sidebar_bg.Color = Color3.fromRGB(15, 15, 15); sidebar_bg.Size = Vector2.new(140, 320); sidebar_bg.Visible = false
+local sidebar_accent = reg(Drawing.new("Square")); sidebar_accent.Filled = true; sidebar_accent.Color = Color3.fromRGB(255, 35, 35); sidebar_accent.Size = Vector2.new(3, 22); sidebar_accent.Visible = false
+local logo_text = reg(Drawing.new("Text")); logo_text.Text = "MATCHA"; logo_text.Color = Color3.fromRGB(255, 35, 35); logo_text.Size = 20; logo_text.Font = Drawing.Fonts.SystemBold; logo_text.Visible = false
+
+local cat_hitbox = reg(Drawing.new("Text")); cat_hitbox.Text = "  HitBox"; cat_hitbox.Color = Color3.fromRGB(255, 255, 255); cat_hitbox.Size = 14; cat_hitbox.Visible = false
+local cat_gunmodule = reg(Drawing.new("Text")); cat_gunmodule.Text = "  GunModule"; cat_gunmodule.Color = Color3.fromRGB(120, 120, 120); cat_gunmodule.Size = 14; cat_gunmodule.Visible = false
+local cat_visuals = reg(Drawing.new("Text")); cat_visuals.Text = "  Visuals"; cat_visuals.Color = Color3.fromRGB(120, 120, 120); cat_visuals.Size = 14; cat_visuals.Visible = false
+local cat_configs = reg(Drawing.new("Text")); cat_configs.Text = "  Configs"; cat_configs.Color = Color3.fromRGB(120, 120, 120); cat_configs.Size = 14; cat_configs.Visible = false
+
+local card1_bg = reg(Drawing.new("Square"), "HitBox"); card1_bg.Filled = true; card1_bg.Color = Color3.fromRGB(28, 28, 28); card1_bg.Size = Vector2.new(330, 130); card1_bg.Visible = false
+local size_status_text = reg(Drawing.new("Text"), "HitBox"); size_status_text.Text = "Target Size: " .. tostring(size); size_status_text.Visible = false
+local plus_bg = reg(Drawing.new("Square"), "HitBox"); plus_bg.Filled = true; plus_bg.Size = Vector2.new(40, 28); plus_bg.Visible = false
+local minus_bg = reg(Drawing.new("Square"), "HitBox"); minus_bg.Filled = true; minus_bg.Size = Vector2.new(40, 28); minus_bg.Visible = false
+local reset_bg = reg(Drawing.new("Square"), "HitBox"); reset_bg.Filled = true; reset_bg.Size = Vector2.new(70, 28); reset_bg.Visible = false
+local toggle_bg = reg(Drawing.new("Square"), "HitBox"); toggle_bg.Filled = true; toggle_bg.Size = Vector2.new(130, 28); toggle_bg.Visible = false
+local toggle_text = reg(Drawing.new("Text"), "HitBox"); toggle_text.Text = "Hitbox: ENABLED"; toggle_text.Visible = false
+
+local gun_card_bg = reg(Drawing.new("Square"), "GunModule"); gun_card_bg.Filled = true; gun_card_bg.Size = Vector2.new(330, 275); gun_card_bg.Visible = false
+local weapon_ammo_bg = reg(Drawing.new("Square"), "GunModule"); weapon_ammo_bg.Filled = true; weapon_ammo_bg.Size = Vector2.new(160, 28); weapon_ammo_bg.Visible = false
+local weapon_recoil_bg = reg(Drawing.new("Square"), "GunModule"); weapon_recoil_bg.Filled = true; weapon_recoil_bg.Size = Vector2.new(160, 28); weapon_recoil_bg.Visible = false
+local weapon_fire_bg = reg(Drawing.new("Square"), "GunModule"); weapon_fire_bg.Filled = true; weapon_fire_bg.Size = Vector2.new(160, 28); weapon_fire_bg.Visible = false
+
+local trails_toggle_bg = reg(Drawing.new("Square"), "Visuals"); trails_toggle_bg.Filled = true; trails_toggle_bg.Size = Vector2.new(155, 28); trails_toggle_bg.Visible = false
+local trails_toggle_text = reg(Drawing.new("Text"), "Visuals"); trails_toggle_text.Text = "Rain Trails: ENABLED"; trails_toggle_text.Visible = false
+
+local cfg_save_bg = reg(Drawing.new("Square"), "Configs"); cfg_save_bg.Filled = true; cfg_save_bg.Size = Vector2.new(150, 28); cfg_save_bg.Visible = false
+local cfg_load_bg = reg(Drawing.new("Square"), "Configs"); cfg_load_bg.Filled = true; cfg_load_bg.Size = Vector2.new(150, 28); cfg_load_bg.Visible = false
+local cfg_status_text = reg(Drawing.new("Text"), "Configs"); cfg_status_text.Text = "Storage Slot 1: EMPTY"; cfg_status_text.Visible = false
+
+-- (Assuming updateElementPositions and updateMenuUI remain as you wrote them, they are fine)
+
+-- ==========================================
+-- EFFICIENT EVENT-DRIVEN LOGIC
+-- ==========================================
+
+-- 1. Memory Patches (Run on Heartbeat)
+RunService.Heartbeat:Connect(function()
+    if gcCache then
+        pcall(function()
+            if isAmmoEnabled then applygc(gcCache, { Ammo = customAmmoValue, MagAmmo = customAmmoValue, StoredAmmo = customStoredAmmoValue }) end
+            if isRecoilEnabled then applygc(gcCache, { MaxSpread = customMaxSpreadValue, Spread = customMaxSpreadValue, SpreadAngle = customMaxSpreadValue, RecoilControl = customRecoilControlValue, CameraRecoilMult = customRecoilControlValue }) end
+            if isFireRateEnabled then applygc(gcCache, { Auto = customAutoValue, Automatic = customAutoValue }) end
+        end)
+    end
+end)
+
+-- 2. Visuals and Hitbox Logic (Throttled)
+local lastUpdate = 0
+RunService.Heartbeat:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastUpdate > 0.1 then -- Throttle to 10Hz
+        lastUpdate = currentTime
+        
+        -- Hitbox Update
+        local myTeam = LocalPlayer.Team
+        local currentTargetSize = isHitboxEnabled and size or 1
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player == LocalPlayer then continue end
+            local char = player.Character
+            if char then
+                local hitbox = char:FindFirstChild(iter[1])
+                if hitbox then
+                    local isTeammate = (myTeam and player.Team == myTeam)
+                    hitbox.Size = isTeammate and Vector3.new(1, 1, 1) or Vector3.new(currentTargetSize, currentTargetSize, currentTargetSize)
+                    hitbox.CanCollide = false
+                end
+            end
+        end
+
+        -- Trail Cleanup
+        for i = #activeTrails, 1, -1 do
+            local trail = activeTrails[i]
+            if currentTime - trail.spawnTime >= trail.maxLife then
+                trail.obj:Remove()
+                table.remove(activeTrails, i)
+            end
+        end
+    end
+end)
+
 local menu_bg = reg(Drawing.new("Square"))
 menu_bg.Filled = true
 menu_bg.Color = Color3.fromRGB(20, 20, 20)
@@ -747,3 +811,6 @@ while true do
     end
     task.wait(0.1)
 end
+
+refreshMemoryCache()
+print("Engine Optimized. The performance is yours.")
